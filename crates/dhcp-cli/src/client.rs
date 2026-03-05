@@ -52,11 +52,13 @@ impl ApiClient {
             Self::Http { client, .. } => client.request(req).await?,
         };
 
-        if response.status() != StatusCode::OK {
-            anyhow::bail!("Request failed with status: {}", response.status());
+        let status = response.status();
+        let body = response.into_body().collect().await?.to_bytes();
+        if status != StatusCode::OK {
+            let body_str = String::from_utf8_lossy(&body);
+            anyhow::bail!("Request failed with status {}: {}", status, body_str);
         }
 
-        let body = response.into_body().collect().await?.to_bytes();
         let data = serde_json::from_slice(&body)?;
         Ok(data)
     }
@@ -80,11 +82,13 @@ impl ApiClient {
             Self::Http { client, .. } => client.request(req).await?,
         };
 
-        if !response.status().is_success() {
-            anyhow::bail!("Request failed with status: {}", response.status());
+        let status = response.status();
+        let body = response.into_body().collect().await?.to_bytes();
+        if !status.is_success() {
+            let body_str = String::from_utf8_lossy(&body);
+            anyhow::bail!("Request failed with status {}: {}", status, body_str);
         }
 
-        let body = response.into_body().collect().await?.to_bytes();
         let data = serde_json::from_slice(&body)?;
         Ok(data)
     }
@@ -105,8 +109,12 @@ impl ApiClient {
             Self::Http { client, .. } => client.request(req).await?,
         };
 
-        if !response.status().is_success() {
-            anyhow::bail!("Request failed with status: {}", response.status());
+        let status = response.status();
+
+        if !status.is_success() {
+            let body = response.into_body().collect().await?.to_bytes();
+            let body_str = String::from_utf8_lossy(&body);
+            anyhow::bail!("Request failed with status {}: {}", status, body_str);
         }
 
         Ok(())
@@ -124,8 +132,11 @@ impl ApiClient {
             Self::Http { client, .. } => client.request(req).await?,
         };
 
-        if !response.status().is_success() {
-            anyhow::bail!("Request failed with status: {}", response.status());
+        let status = response.status();
+        if !status.is_success() {
+            let body = response.into_body().collect().await?.to_bytes();
+            let body_str = String::from_utf8_lossy(&body);
+            anyhow::bail!("Request failed with status {}: {}", status, body_str);
         }
 
         Ok(())
@@ -143,8 +154,11 @@ impl ApiClient {
             Self::Http { client, .. } => client.request(req).await?,
         };
 
-        if response.status() != StatusCode::OK {
-            anyhow::bail!("Health check failed with status: {}", response.status());
+        let status = response.status();
+        if status != StatusCode::OK {
+            let body = response.into_body().collect().await?.to_bytes();
+            let body_str = String::from_utf8_lossy(&body);
+            anyhow::bail!("Health check failed with status {}: {}", status, body_str);
         }
 
         let body = response.into_body().collect().await?.to_bytes();

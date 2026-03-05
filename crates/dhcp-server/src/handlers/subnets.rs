@@ -4,6 +4,7 @@ use axum::{
     http::StatusCode,
     Json,
 };
+use tracing::error;
 
 /// List all subnets
 #[utoipa::path(
@@ -21,7 +22,10 @@ pub async fn list_subnets(State(state): State<AppState>) -> Result<Json<Vec<Subn
         .list_subnets()
         .await
         .map(Json)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
+        .map_err(|e| {
+            error!("Failed to list subnets: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })
 }
 
 /// Create a new subnet
@@ -45,7 +49,10 @@ pub async fn create_subnet(
         .create_subnet(&subnet)
         .await
         .map(|id| (StatusCode::CREATED, Json(id)))
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
+        .map_err(|e| {
+            error!("Failed to create subnet (network={}/{}, gateway={}): {}", subnet.network, subnet.netmask, subnet.gateway, e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })
 }
 
 /// Get a subnet by ID
@@ -70,7 +77,10 @@ pub async fn get_subnet(
         .db
         .get_subnet(id)
         .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        .map_err(|e| {
+            error!("Failed to get subnet id={}: {}", id, e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?
         .map(Json)
         .ok_or(StatusCode::NOT_FOUND)
 }
@@ -100,7 +110,10 @@ pub async fn update_subnet(
         .update_subnet(id, &subnet)
         .await
         .map(|_| StatusCode::OK)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
+        .map_err(|e| {
+            error!("Failed to update subnet id={}: {}", id, e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })
 }
 
 /// Delete a subnet
@@ -125,5 +138,8 @@ pub async fn delete_subnet(
         .delete_subnet(id)
         .await
         .map(|_| StatusCode::NO_CONTENT)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
+        .map_err(|e| {
+            error!("Failed to delete subnet id={}: {}", id, e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })
 }

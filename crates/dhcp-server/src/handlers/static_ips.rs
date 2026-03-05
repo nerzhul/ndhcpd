@@ -5,6 +5,7 @@ use axum::{
     Json,
 };
 use serde::Deserialize;
+use tracing::error;
 
 #[derive(Deserialize)]
 pub struct StaticIpQuery {
@@ -33,7 +34,10 @@ pub async fn list_static_ips(
         .list_static_ips(query.subnet_id)
         .await
         .map(Json)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
+        .map_err(|e| {
+            error!("Failed to list static IPs (subnet_id={:?}): {}", query.subnet_id, e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })
 }
 
 /// Create a new static IP assignment
@@ -57,7 +61,10 @@ pub async fn create_static_ip(
         .create_static_ip(&static_ip)
         .await
         .map(|id| (StatusCode::CREATED, Json(id)))
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
+        .map_err(|e| {
+            error!("Failed to create static IP (subnet_id={}, mac={}, ip={}): {}", static_ip.subnet_id, static_ip.mac_address, static_ip.ip_address, e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })
 }
 
 /// Delete a static IP assignment
@@ -82,5 +89,8 @@ pub async fn delete_static_ip(
         .delete_static_ip(id)
         .await
         .map(|_| StatusCode::NO_CONTENT)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
+        .map_err(|e| {
+            error!("Failed to delete static IP id={}: {}", id, e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })
 }

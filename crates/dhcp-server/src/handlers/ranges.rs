@@ -5,6 +5,7 @@ use axum::{
     Json,
 };
 use serde::Deserialize;
+use tracing::error;
 
 #[derive(Deserialize)]
 pub struct RangeQuery {
@@ -33,7 +34,10 @@ pub async fn list_ranges(
         .list_ranges(query.subnet_id)
         .await
         .map(Json)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
+        .map_err(|e| {
+            error!("Failed to list ranges (subnet_id={:?}): {}", query.subnet_id, e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })
 }
 
 /// Create a new dynamic range
@@ -57,7 +61,10 @@ pub async fn create_range(
         .create_range(&range)
         .await
         .map(|id| (StatusCode::CREATED, Json(id)))
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
+        .map_err(|e| {
+            error!("Failed to create range (subnet_id={}, start={}, end={}): {}", range.subnet_id, range.range_start, range.range_end, e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })
 }
 
 /// Delete a dynamic range
@@ -82,5 +89,8 @@ pub async fn delete_range(
         .delete_range(id)
         .await
         .map(|_| StatusCode::NO_CONTENT)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
+        .map_err(|e| {
+            error!("Failed to delete range id={}: {}", id, e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })
 }

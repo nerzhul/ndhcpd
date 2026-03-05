@@ -1,5 +1,6 @@
 use crate::{models::Lease, AppState};
 use axum::{extract::State, http::StatusCode, Json};
+use tracing::error;
 
 /// List all active leases
 #[utoipa::path(
@@ -17,5 +18,8 @@ pub async fn list_leases(State(state): State<AppState>) -> Result<Json<Vec<Lease
         .list_active_leases()
         .await
         .map(Json)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
+        .map_err(|e| {
+            error!("Failed to list leases: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })
 }

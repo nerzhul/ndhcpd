@@ -5,6 +5,7 @@ use axum::{
     Json,
 };
 use serde::Deserialize;
+use tracing::error;
 
 /// Query parameters for listing prefixes
 #[derive(Debug, Deserialize)]
@@ -36,7 +37,10 @@ pub async fn list_ia_prefixes(
         .list_ia_prefixes(interface)
         .await
         .map(Json)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
+        .map_err(|e| {
+            error!("Failed to list IA prefixes (interface={:?}): {}", interface, e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })
 }
 
 /// Create a new IPv6 prefix
@@ -71,7 +75,10 @@ pub async fn create_ia_prefix(
         .create_ia_prefix(&prefix)
         .await
         .map(|id| (StatusCode::CREATED, Json(id)))
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
+        .map_err(|e| {
+            error!("Failed to create IA prefix (interface={}, prefix={}): {}", prefix.interface, prefix.prefix, e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })
 }
 
 /// Get an IPv6 prefix by ID
@@ -96,7 +103,10 @@ pub async fn get_ia_prefix(
         .db
         .get_ia_prefix(id)
         .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        .map_err(|e| {
+            error!("Failed to get IA prefix id={}: {}", id, e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?
         .map(Json)
         .ok_or(StatusCode::NOT_FOUND)
 }
@@ -126,7 +136,10 @@ pub async fn update_ia_prefix(
         .update_ia_prefix(id, &prefix)
         .await
         .map(|_| StatusCode::OK)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
+        .map_err(|e| {
+            error!("Failed to update IA prefix id={}: {}", id, e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })
 }
 
 /// Delete an IPv6 prefix
@@ -151,5 +164,8 @@ pub async fn delete_ia_prefix(
         .delete_ia_prefix(id)
         .await
         .map(|_| StatusCode::NO_CONTENT)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
+        .map_err(|e| {
+            error!("Failed to delete IA prefix id={}: {}", id, e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })
 }

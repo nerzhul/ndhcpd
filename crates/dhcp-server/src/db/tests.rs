@@ -154,7 +154,10 @@ pub(crate) mod suite {
 
     pub async fn test_create_and_list_static_ip(db: &dyn Database) {
         let sid = db.create_subnet(&subnet(20)).await.unwrap();
-        let id = db.create_static_ip(&static_ip(sid, "01", 20)).await.unwrap();
+        let id = db
+            .create_static_ip(&static_ip(sid, "01", 20))
+            .await
+            .unwrap();
         assert!(id > 0);
 
         let ips = db.list_static_ips(Some(sid)).await.unwrap();
@@ -165,7 +168,9 @@ pub(crate) mod suite {
 
     pub async fn test_get_static_ip_by_mac(db: &dyn Database) {
         let sid = db.create_subnet(&subnet(21)).await.unwrap();
-        db.create_static_ip(&static_ip(sid, "02", 21)).await.unwrap();
+        db.create_static_ip(&static_ip(sid, "02", 21))
+            .await
+            .unwrap();
 
         let result = db.get_static_ip_by_mac("aa:bb:cc:dd:ee:02").await.unwrap();
         assert!(result.is_some());
@@ -173,12 +178,19 @@ pub(crate) mod suite {
     }
 
     pub async fn test_get_static_ip_by_mac_not_found(db: &dyn Database) {
-        assert!(db.get_static_ip_by_mac("00:00:00:00:00:00").await.unwrap().is_none());
+        assert!(db
+            .get_static_ip_by_mac("00:00:00:00:00:00")
+            .await
+            .unwrap()
+            .is_none());
     }
 
     pub async fn test_delete_static_ip(db: &dyn Database) {
         let sid = db.create_subnet(&subnet(22)).await.unwrap();
-        let id = db.create_static_ip(&static_ip(sid, "03", 22)).await.unwrap();
+        let id = db
+            .create_static_ip(&static_ip(sid, "03", 22))
+            .await
+            .unwrap();
 
         db.delete_static_ip(id).await.unwrap();
 
@@ -217,7 +229,11 @@ pub(crate) mod suite {
 
         db.expire_lease(id).await.unwrap();
 
-        assert!(db.get_active_lease("aa:bb:cc:dd:ee:12").await.unwrap().is_none());
+        assert!(db
+            .get_active_lease("aa:bb:cc:dd:ee:12")
+            .await
+            .unwrap()
+            .is_none());
     }
 
     pub async fn test_expired_lease_not_returned(db: &dyn Database) {
@@ -235,7 +251,11 @@ pub(crate) mod suite {
         };
         db.create_lease(&expired).await.unwrap();
 
-        assert!(db.get_active_lease("aa:bb:cc:dd:ee:13").await.unwrap().is_none());
+        assert!(db
+            .get_active_lease("aa:bb:cc:dd:ee:13")
+            .await
+            .unwrap()
+            .is_none());
     }
 
     // --- IA Prefix tests ---
@@ -244,7 +264,11 @@ pub(crate) mod suite {
         let id = db.create_ia_prefix(&ia_prefix("iap0", 1)).await.unwrap();
         assert!(id > 0);
 
-        let prefix = db.get_ia_prefix(id).await.unwrap().expect("prefix not found");
+        let prefix = db
+            .get_ia_prefix(id)
+            .await
+            .unwrap()
+            .expect("prefix not found");
         assert_eq!(prefix.id, Some(id));
         assert_eq!(prefix.interface, "iap0");
         assert_eq!(prefix.prefix_len, 64);
@@ -281,7 +305,11 @@ pub(crate) mod suite {
         updated.enabled = false;
         db.update_ia_prefix(id, &updated).await.unwrap();
 
-        let prefix = db.get_ia_prefix(id).await.unwrap().expect("prefix not found");
+        let prefix = db
+            .get_ia_prefix(id)
+            .await
+            .unwrap()
+            .expect("prefix not found");
         assert_eq!(prefix.prefix_len, 48);
         assert!(!prefix.enabled);
     }
