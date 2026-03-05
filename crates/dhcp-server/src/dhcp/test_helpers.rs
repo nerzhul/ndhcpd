@@ -12,7 +12,7 @@ use std::net::Ipv4Addr;
 #[cfg(test)]
 pub fn create_test_config() -> Config {
     Config {
-        listen_addresses: vec![Ipv4Addr::new(192, 168, 1, 1)],
+        listen_interfaces: vec!["lo".to_string()],
         database_path: ":memory:".to_string(),
         api: ApiConfig {
             listen_address: "127.0.0.1".to_string(),

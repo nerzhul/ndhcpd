@@ -65,10 +65,7 @@ async fn create(client: ApiClient, subnet_id: i64, start: String, end: String) -
         .post("/api/ranges", &range)
         .await
         .map_err(|e| match e.downcast::<AlreadyExistsError>() {
-            Ok(_) => anyhow::anyhow!(
-                "Dynamic range {}-{} already exists",
-                start_ip, end_ip
-            ),
+            Ok(_) => anyhow::anyhow!("Dynamic range {}-{} already exists", start_ip, end_ip),
             Err(e) => e,
         })?;
     println!("Created dynamic range with ID: {}", id);

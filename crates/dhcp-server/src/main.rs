@@ -216,8 +216,8 @@ async fn main() -> Result<()> {
     let dhcp_server = DhcpServer::new(Arc::clone(&config), Arc::clone(&db));
 
     info!(
-        "DHCP server starting on addresses: {:?}",
-        config.listen_addresses
+        "DHCP server starting on interfaces: {:?}",
+        config.listen_interfaces
     );
 
     // Run DHCP server (blocks)

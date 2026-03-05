@@ -32,8 +32,8 @@ cp config.example.yaml config.yaml
 Edit as needed. Minimal config:
 
 ```yaml
-listen_addresses:
-  - 0.0.0.0
+listen_interfaces:
+  - eth0
 
 database_path: ./dhcp.db
 

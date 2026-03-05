@@ -1,8 +1,8 @@
 # DHCP Server Configuration
 
-# Listening addresses for DHCP server (IPv4)
-listen_addresses:
-  - 0.0.0.0
+# Network interfaces the DHCP server should listen on
+listen_interfaces:
+  - eth0
 
 # Database configuration
 database_path: /var/lib/dhcp-server/dhcp.db

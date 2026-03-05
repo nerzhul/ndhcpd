@@ -42,8 +42,8 @@ The binaries will be available at:
 Create a configuration file (default: `/etc/dhcp-server/config.yaml`):
 
 ```yaml
-listen_addresses:
-  - 0.0.0.0
+listen_interfaces:
+  - eth0
 
 database_path: /var/lib/dhcp-server/dhcp.db
 

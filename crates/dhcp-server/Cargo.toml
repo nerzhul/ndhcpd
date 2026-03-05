@@ -34,3 +34,4 @@ base64 = "0.22.1"
 getrandom = "0.4.1"
 rand = "0.8"
 async-trait.workspace = true
+libc = "0.2"

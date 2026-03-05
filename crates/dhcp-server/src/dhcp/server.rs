@@ -1,4 +1,7 @@
+use std::collections::HashSet;
+use std::ffi::CString;
 use std::net::{Ipv4Addr, SocketAddr, UdpSocket};
+use std::os::unix::io::AsRawFd;
 use std::sync::Arc;
 use tracing::{debug, error, info, warn};
 
@@ -22,17 +25,17 @@ impl DhcpServer {
     pub async fn run(&self) -> anyhow::Result<()> {
         info!("Starting DHCP server");
 
-        for listen_addr in &self.config.listen_addresses {
-            let addr = SocketAddr::new((*listen_addr).into(), DHCP_SERVER_PORT);
-            info!("Binding to {}", addr);
+        for interface in &self.config.listen_interfaces {
+            info!("Binding to interface {}", interface);
 
             // Clone Arc references for the spawned task
             let config = Arc::clone(&self.config);
             let db = Arc::clone(&self.db);
+            let interface = interface.clone();
 
             tokio::spawn(async move {
-                if let Err(e) = Self::listen_loop(addr, config, db).await {
-                    error!("DHCP listener error on {}: {}", addr, e);
+                if let Err(e) = Self::listen_loop(interface.clone(), config, db).await {
+                    error!("DHCP listener error on interface {}: {}", interface, e);
                 }
             });
         }
@@ -44,14 +47,38 @@ impl DhcpServer {
     }
 
     async fn listen_loop(
-        addr: SocketAddr,
+        interface: String,
         config: Arc<Config>,
         db: DynDatabase,
     ) -> anyhow::Result<()> {
+        let addr = SocketAddr::new(Ipv4Addr::UNSPECIFIED.into(), DHCP_SERVER_PORT);
         let socket = UdpSocket::bind(addr)?;
         socket.set_broadcast(true)?;
 
-        info!("DHCP server listening on {}", addr);
+        // Bind the socket to the specific network interface so only packets
+        // arriving on that interface are received (SO_BINDTODEVICE).
+        let iface_cstr = CString::new(interface.as_str())?;
+        let ret = unsafe {
+            libc::setsockopt(
+                socket.as_raw_fd(),
+                libc::SOL_SOCKET,
+                libc::SO_BINDTODEVICE,
+                iface_cstr.as_ptr() as *const libc::c_void,
+                iface_cstr.as_bytes_with_nul().len() as libc::socklen_t,
+            )
+        };
+        if ret != 0 {
+            return Err(anyhow::anyhow!(
+                "Failed to bind socket to interface {}: {}",
+                interface,
+                std::io::Error::last_os_error()
+            ));
+        }
+
+        info!(
+            "DHCP server listening on interface {} (0.0.0.0:{})",
+            interface, DHCP_SERVER_PORT
+        );
 
         let mut buf = vec![0u8; 1024];
 
@@ -149,8 +176,42 @@ impl DhcpServer {
             ));
         }
 
-        // TODO: Allocate new IP from dynamic range
-        // For now, just return None
+        // Allocate a new IP from an enabled dynamic range
+        let ranges = match db.list_ranges(None).await {
+            Ok(r) => r,
+            Err(e) => {
+                error!("Failed to list dynamic ranges: {}", e);
+                return None;
+            }
+        };
+
+        // Build the set of IPs already in use to avoid double-allocation
+        let leased_ips: HashSet<Ipv4Addr> = match db.list_active_leases().await {
+            Ok(leases) => leases.into_iter().map(|l| l.ip_address).collect(),
+            Err(e) => {
+                error!("Failed to list active leases: {}", e);
+                return None;
+            }
+        };
+
+        for range in ranges.iter().filter(|r| r.enabled) {
+            let start = u32::from(range.range_start);
+            let end = u32::from(range.range_end);
+
+            for ip_u32 in start..=end {
+                let candidate = Ipv4Addr::from(ip_u32);
+                if !leased_ips.contains(&candidate) {
+                    let subnet = match db.get_subnet(range.subnet_id).await {
+                        Ok(Some(s)) => s,
+                        _ => continue,
+                    };
+                    debug!("Offering dynamic IP {} to {}", candidate, mac);
+                    return Some(Self::create_offer(packet, candidate, &subnet, config));
+                }
+            }
+        }
+
+        warn!("No free IP available for DISCOVER from {}", mac);
         None
     }
 
@@ -161,26 +222,121 @@ impl DhcpServer {
     ) -> Option<DhcpPacket> {
         let mac = packet.chaddr.to_string();
 
-        // Extract requested IP
-        let requested_ip = packet.options.iter().find_map(|opt| {
-            if let DhcpOption::RequestedIpAddress(ip) = opt {
-                Some(*ip)
+        // Extract requested IP: from option 50 (new request) or ciaddr (renewal)
+        let requested_ip = packet
+            .options
+            .iter()
+            .find_map(|opt| {
+                if let DhcpOption::RequestedIpAddress(ip) = opt {
+                    Some(*ip)
+                } else {
+                    None
+                }
+            })
+            .or_else(|| {
+                if packet.ciaddr != Ipv4Addr::UNSPECIFIED {
+                    Some(packet.ciaddr)
+                } else {
+                    None
+                }
+            })?;
+
+        // Extract optional hostname sent by the client
+        let hostname = packet.options.iter().find_map(|opt| {
+            if let DhcpOption::Hostname(h) = opt {
+                Some(h.clone())
             } else {
                 None
             }
-        })?;
+        });
 
         // Check for static IP assignment
         if let Ok(Some(static_ip)) = db.get_static_ip_by_mac(&mac).await {
             if static_ip.ip_address == requested_ip {
                 let subnet = db.get_subnet(static_ip.subnet_id).await.ok()??;
-
                 return Some(Self::create_ack(packet, requested_ip, &subnet, config));
+            }
+            // Static IP exists but client requested a different one: NAK
+            warn!(
+                "Client {} requested {} but has static assignment {}",
+                mac, requested_ip, static_ip.ip_address
+            );
+            return None;
+        }
+
+        // Check if the requested IP falls within an enabled dynamic range
+        let ranges = match db.list_ranges(None).await {
+            Ok(r) => r,
+            Err(e) => {
+                error!("Failed to list dynamic ranges: {}", e);
+                return None;
+            }
+        };
+
+        let matching_range = ranges.iter().find(|r| {
+            r.enabled
+                && u32::from(r.range_start) <= u32::from(requested_ip)
+                && u32::from(requested_ip) <= u32::from(r.range_end)
+        })?;
+
+        // Verify the IP is not already leased by a different MAC
+        let active_leases = match db.list_active_leases().await {
+            Ok(l) => l,
+            Err(e) => {
+                error!("Failed to list active leases: {}", e);
+                return None;
+            }
+        };
+
+        if let Some(existing) = active_leases.iter().find(|l| l.ip_address == requested_ip) {
+            if existing.mac_address != mac {
+                warn!(
+                    "Client {} requested {} already leased to {}",
+                    mac, requested_ip, existing.mac_address
+                );
+                return None;
+            }
+            // Same MAC renewing: expire old lease before creating a new one
+            if let Some(id) = existing.id {
+                let _ = db.expire_lease(id).await;
             }
         }
 
-        // TODO: Validate and create lease
-        None
+        // Retrieve the subnet for this range
+        let subnet = match db.get_subnet(matching_range.subnet_id).await {
+            Ok(Some(s)) => s,
+            _ => {
+                error!(
+                    "Subnet {} not found for dynamic range",
+                    matching_range.subnet_id
+                );
+                return None;
+            }
+        };
+
+        // Create the lease
+        let now = chrono::Utc::now().timestamp();
+        let lease = crate::models::Lease {
+            id: None,
+            subnet_id: matching_range.subnet_id,
+            mac_address: mac.clone(),
+            ip_address: requested_ip,
+            lease_start: now,
+            lease_end: now + config.dhcp.default_lease_time as i64,
+            hostname,
+            active: true,
+        };
+
+        if let Err(e) = db.create_lease(&lease).await {
+            error!("Failed to create lease for {}: {}", mac, e);
+            return None;
+        }
+
+        info!(
+            "Dynamic lease created: {} -> {} (subnet {})",
+            mac, requested_ip, subnet.network
+        );
+        Some(Self::create_ack(packet, requested_ip, &subnet, config))
     }
 
     async fn handle_release(packet: &DhcpPacket, db: &dyn Database) {
@@ -388,7 +544,7 @@ mod tests {
         // Test handle_discover
         let response = DhcpServer::handle_discover(&packet, &config, &db).await;
 
-        // Should return None as dynamic allocation is not implemented yet
+        // Should return None: no static IP, no lease, and no dynamic ranges
         assert!(response.is_none());
     }
 
@@ -436,6 +592,143 @@ mod tests {
         let offer = response.unwrap();
         // Should offer the static IP, not the leased IP
         assert_eq!(offer.yiaddr, Ipv4Addr::new(192, 168, 1, 50));
+    }
+
+    #[tokio::test]
+    async fn test_handle_discover_dynamic_allocation() {
+        let config = create_test_config();
+        let db = InMemoryDatabase::new();
+
+        let subnet = create_test_subnet();
+        let subnet_id = db.create_subnet(&subnet).await.unwrap();
+
+        // Create a dynamic range
+        let range = crate::models::DynamicRange {
+            id: None,
+            subnet_id,
+            range_start: Ipv4Addr::new(192, 168, 1, 100),
+            range_end: Ipv4Addr::new(192, 168, 1, 200),
+            enabled: true,
+        };
+        db.create_range(&range).await.unwrap();
+
+        let packet = create_discover_packet("AA:BB:CC:DD:EE:11");
+        let response = DhcpServer::handle_discover(&packet, &config, &db).await;
+
+        assert!(response.is_some());
+        let offer = response.unwrap();
+        // Should offer the first IP in the range
+        assert_eq!(offer.yiaddr, Ipv4Addr::new(192, 168, 1, 100));
+        assert_eq!(offer.get_message_type(), Some(MessageType::Offer));
+    }
+
+    #[tokio::test]
+    async fn test_handle_discover_dynamic_skips_leased_ips() {
+        let config = create_test_config();
+        let db = InMemoryDatabase::new();
+
+        let subnet = create_test_subnet();
+        let subnet_id = db.create_subnet(&subnet).await.unwrap();
+
+        let range = crate::models::DynamicRange {
+            id: None,
+            subnet_id,
+            range_start: Ipv4Addr::new(192, 168, 1, 100),
+            range_end: Ipv4Addr::new(192, 168, 1, 200),
+            enabled: true,
+        };
+        db.create_range(&range).await.unwrap();
+
+        // Lease .100 to another client
+        let now = chrono::Utc::now().timestamp();
+        let lease = Lease {
+            id: None,
+            subnet_id,
+            mac_address: "11:22:33:44:55:66".to_string(),
+            ip_address: Ipv4Addr::new(192, 168, 1, 100),
+            lease_start: now,
+            lease_end: now + 86400,
+            hostname: None,
+            active: true,
+        };
+        db.create_lease(&lease).await.unwrap();
+
+        let packet = create_discover_packet("AA:BB:CC:DD:EE:22");
+        let response = DhcpServer::handle_discover(&packet, &config, &db).await;
+
+        assert!(response.is_some());
+        // Should skip .100 (leased) and offer .101
+        assert_eq!(response.unwrap().yiaddr, Ipv4Addr::new(192, 168, 1, 101));
+    }
+
+    #[tokio::test]
+    async fn test_handle_request_dynamic_creates_lease() {
+        let config = create_test_config();
+        let db = InMemoryDatabase::new();
+
+        let subnet = create_test_subnet();
+        let subnet_id = db.create_subnet(&subnet).await.unwrap();
+
+        let range = crate::models::DynamicRange {
+            id: None,
+            subnet_id,
+            range_start: Ipv4Addr::new(192, 168, 1, 100),
+            range_end: Ipv4Addr::new(192, 168, 1, 200),
+            enabled: true,
+        };
+        db.create_range(&range).await.unwrap();
+
+        let requested = Ipv4Addr::new(192, 168, 1, 100);
+        let packet = create_request_packet("AA:BB:CC:DD:EE:33", requested);
+        let response = DhcpServer::handle_request(&packet, &config, &db).await;
+
+        assert!(response.is_some());
+        let ack = response.unwrap();
+        assert_eq!(ack.yiaddr, requested);
+        assert_eq!(ack.get_message_type(), Some(MessageType::Ack));
+
+        // Verify lease was persisted
+        let lease = db.get_active_lease("AA:BB:CC:DD:EE:33").await.unwrap();
+        assert!(lease.is_some());
+        assert_eq!(lease.unwrap().ip_address, requested);
+    }
+
+    #[tokio::test]
+    async fn test_handle_request_dynamic_rejects_stolen_ip() {
+        let config = create_test_config();
+        let db = InMemoryDatabase::new();
+
+        let subnet = create_test_subnet();
+        let subnet_id = db.create_subnet(&subnet).await.unwrap();
+
+        let range = crate::models::DynamicRange {
+            id: None,
+            subnet_id,
+            range_start: Ipv4Addr::new(192, 168, 1, 100),
+            range_end: Ipv4Addr::new(192, 168, 1, 200),
+            enabled: true,
+        };
+        db.create_range(&range).await.unwrap();
+
+        // Another client already owns .100
+        let now = chrono::Utc::now().timestamp();
+        let existing = Lease {
+            id: None,
+            subnet_id,
+            mac_address: "11:22:33:44:55:66".to_string(),
+            ip_address: Ipv4Addr::new(192, 168, 1, 100),
+            lease_start: now,
+            lease_end: now + 86400,
+            hostname: None,
+            active: true,
+        };
+        db.create_lease(&existing).await.unwrap();
+
+        let packet = create_request_packet("AA:BB:CC:DD:EE:44", Ipv4Addr::new(192, 168, 1, 100));
+        let response = DhcpServer::handle_request(&packet, &config, &db).await;
+
+        // Should be rejected
+        assert!(response.is_none());
     }
 
     #[tokio::test]

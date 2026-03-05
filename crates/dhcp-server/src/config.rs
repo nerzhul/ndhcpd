@@ -1,11 +1,10 @@
 use serde::{Deserialize, Serialize};
-use std::net::Ipv4Addr;
 
 /// Configuration structure loaded from YAML
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
-    /// Listening addresses for the DHCP server
-    pub listen_addresses: Vec<Ipv4Addr>,
+    /// Network interfaces the DHCP server should listen on
+    pub listen_interfaces: Vec<String>,
 
     /// Database file path
     #[serde(default = "default_db_path")]
@@ -133,7 +132,7 @@ impl Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            listen_addresses: vec![Ipv4Addr::new(0, 0, 0, 0)],
+            listen_interfaces: vec!["eth0".to_string()],
             database_path: default_db_path(),
             api: ApiConfig {
                 listen_address: default_api_address(),
