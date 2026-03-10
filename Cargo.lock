@@ -442,57 +442,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "dhcp-cli"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "chrono",
- "clap",
- "dhcp-server",
- "http-body-util",
- "hyper",
- "hyper-util",
- "hyperlocal",
- "serde",
- "serde_json",
- "tokio",
- "tower-service",
-]
-
-[[package]]
 name = "dhcp-proto"
 version = "0.1.0"
-
-[[package]]
-name = "dhcp-server"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "argon2",
- "async-trait",
- "axum",
- "base64",
- "chrono",
- "clap",
- "dhcp-proto",
- "getrandom 0.4.1",
- "hyper",
- "hyper-util",
- "libc",
- "rand",
- "serde",
- "serde_json",
- "serde_yaml",
- "sqlx",
- "thiserror",
- "tokio",
- "tower",
- "tower-http",
- "tracing",
- "tracing-subscriber",
- "utoipa",
- "utoipa-swagger-ui",
-]
 
 [[package]]
 name = "digest"
@@ -1213,6 +1164,55 @@ dependencies = [
  "libc",
  "wasi",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "ndhcp-cli"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "clap",
+ "http-body-util",
+ "hyper",
+ "hyper-util",
+ "hyperlocal",
+ "ndhcpd",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tower-service",
+]
+
+[[package]]
+name = "ndhcpd"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "argon2",
+ "async-trait",
+ "axum",
+ "base64",
+ "chrono",
+ "clap",
+ "dhcp-proto",
+ "getrandom 0.4.1",
+ "hyper",
+ "hyper-util",
+ "libc",
+ "rand",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "sqlx",
+ "thiserror",
+ "tokio",
+ "tower",
+ "tower-http",
+ "tracing",
+ "tracing-subscriber",
+ "utoipa",
+ "utoipa-swagger-ui",
 ]
 
 [[package]]

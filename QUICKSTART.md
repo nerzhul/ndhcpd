@@ -18,8 +18,8 @@ cargo build --release
 ```
 
 Binaries will be in `target/release/`:
-- `dhcp-server` - Main daemon
-- `dhcp-cli` - CLI tool
+- `ndhcpd` - Main daemon
+- `ndhcp-cli` - CLI tool
 
 ### 2. Create Configuration
 
@@ -49,7 +49,7 @@ dhcp:
 ### 3. Run the Server
 
 ```bash
-DHCP_CONFIG=config.yaml ./target/release/dhcp-server
+DHCP_CONFIG=config.yaml ./target/release/ndhcpd
 ```
 
 The server will:
@@ -62,7 +62,7 @@ The server will:
 Create a subnet:
 
 ```bash
-./target/release/dhcp-cli subnet create \
+./target/release/ndhcp-cli subnet create \
   --network 192.168.1.0 \
   --netmask 24 \
   --gateway 192.168.1.1 \
@@ -72,7 +72,7 @@ Create a subnet:
 Add a dynamic IP range:
 
 ```bash
-./target/release/dhcp-cli range create \
+./target/release/ndhcp-cli range create \
   --subnet-id 1 \
   --start 192.168.1.100 \
   --end 192.168.1.200
@@ -81,7 +81,7 @@ Add a dynamic IP range:
 Add a static IP reservation:
 
 ```bash
-./target/release/dhcp-cli static create \
+./target/release/ndhcp-cli static create \
   --subnet-id 1 \
   --mac AA:BB:CC:DD:EE:FF \
   --ip 192.168.1.10 \
@@ -91,7 +91,7 @@ Add a static IP reservation:
 View active leases:
 
 ```bash
-./target/release/dhcp-cli leases
+./target/release/ndhcp-cli leases
 ```
 
 ## API Examples
@@ -136,8 +136,8 @@ home-router/
 │   ├── dhcp-api/       # REST API
 │   │   ├── handlers/   # API endpoints
 │   │   └── lib.rs      # Router setup
-│   ├── dhcp-server/    # Main daemon
-│   └── dhcp-cli/       # CLI tool
+│   ├── ndhcpd/    # Main daemon
+│   └── ndhcp-cli/       # CLI tool
 │       └── commands/   # CLI commands
 └── config.example.yaml
 ```
@@ -174,11 +174,11 @@ DHCP uses port 67 which requires privileges:
 
 ```bash
 # Option 1: Run as root
-sudo DHCP_CONFIG=config.yaml ./target/release/dhcp-server
+sudo DHCP_CONFIG=config.yaml ./target/release/ndhcpd
 
 # Option 2: Grant capability (Linux)
-sudo setcap 'cap_net_bind_service=+ep' ./target/release/dhcp-server
-./target/release/dhcp-server
+sudo setcap 'cap_net_bind_service=+ep' ./target/release/ndhcpd
+./target/release/ndhcpd
 ```
 
 ### Check logs
@@ -186,12 +186,12 @@ sudo setcap 'cap_net_bind_service=+ep' ./target/release/dhcp-server
 The server uses `tracing` for logging. Set log level:
 
 ```bash
-RUST_LOG=debug DHCP_CONFIG=config.yaml ./target/release/dhcp-server
+RUST_LOG=debug DHCP_CONFIG=config.yaml ./target/release/ndhcpd
 ```
 
 ### Database location
 
-By default, database is at `/var/lib/dhcp-server/dhcp.db`.
+By default, database is at `/var/lib/ndhcpd/dhcp.db`.
 Ensure the directory exists and is writable, or use a different path in config.
 
 ## License

@@ -1,7 +1,7 @@
 use crate::client::{AlreadyExistsError, ApiClient};
 use crate::StaticCommands;
 use anyhow::Result;
-use dhcp_server::models::StaticIP;
+use ndhcpd::models::StaticIP;
 use std::net::Ipv4Addr;
 
 pub async fn handle(client: ApiClient, action: StaticCommands) -> Result<()> {
@@ -75,7 +75,8 @@ async fn create(
         .map_err(|e| match e.downcast::<AlreadyExistsError>() {
             Ok(_) => anyhow::anyhow!(
                 "Static IP already exists (MAC {} or IP {} already assigned)",
-                static_ip.mac_address, static_ip.ip_address
+                static_ip.mac_address,
+                static_ip.ip_address
             ),
             Err(e) => e,
         })?;

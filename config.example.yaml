@@ -5,14 +5,14 @@ listen_interfaces:
   - eth0
 
 # Database configuration
-database_path: /var/lib/dhcp-server/dhcp.db
+database_path: /var/lib/ndhcpd/dhcp.db
 
 # API Server configuration
 api:
   listen_address: 127.0.0.1
   port: 8080
   # Unix socket for local communication (optional, no authentication required)
-  unix_socket: /var/run/dhcp-server.sock
+  unix_socket: /var/run/ndhcpd.sock
   # Require token authentication for TCP API (default: false)
   # Note: Unix socket connections are always exempt from authentication
   require_authentication: false

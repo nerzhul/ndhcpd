@@ -22,7 +22,7 @@ pub struct Config {
 }
 
 fn default_db_path() -> String {
-    "/var/lib/dhcp-server/dhcp.db".to_string()
+    "/var/lib/ndhcpd/dhcp.db".to_string()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -53,7 +53,7 @@ fn default_api_port() -> u16 {
 }
 
 fn default_unix_socket() -> Option<String> {
-    Some("/var/run/dhcp-server.sock".to_string())
+    Some("/var/run/ndhcpd.sock".to_string())
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -5,10 +5,10 @@ use anyhow::Result;
 use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
-#[command(name = "dhcp-cli")]
+#[command(name = "ndhcp-cli")]
 #[command(about = "DHCP Server CLI", long_about = None)]
 struct Cli {
-    /// API server URL (http://...) or Unix socket path (default: /var/run/dhcp-server.sock)
+    /// API server URL (http://...) or Unix socket path (default: /var/run/ndhcpd.sock)
     #[arg(long, short = 'u')]
     api_url: Option<String>,
 
@@ -142,7 +142,7 @@ async fn main() -> Result<()> {
         Some(path) => client::ApiClient::new_unix(path),
         None => {
             // Default to Unix socket
-            client::ApiClient::new_unix("/var/run/dhcp-server.sock")
+            client::ApiClient::new_unix("/var/run/ndhcpd.sock")
         }
     };
 

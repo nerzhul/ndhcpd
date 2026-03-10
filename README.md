@@ -1,12 +1,13 @@
-# DHCP Server
+# ndhcpd / ndhcp-cli
 
-A Rust-based DHCPv4 server daemon with REST API and CLI interface.
+A Rust-based DHCPv4 server daemon with REST API, CLI interface, and IPv6 Router Advertisement prefix management.
 
 ## Features
 
-- **DHCPv4 Server**: Full DHCP server implementation
-- **REST API**: OpenAPI-compatible API for configuration
-- **CLI Tool**: Command-line interface for management
+- **DHCPv4 Server**: Full DHCP server implementation (`ndhcpd`)
+- **IPv6 RA Prefix Management**: Manage IPv6 prefixes for Router Advertisements (RA) via API
+- **REST API**: OpenAPI-compatible API for configuration and management
+- **CLI Tool**: Command-line interface for management (`ndhcp-cli`)
 - **SQLite Backend**: Persistent storage for configuration and leases
 - **YAML Configuration**: Easy-to-edit configuration file
 - **Subnet Management**: Configure multiple subnets
@@ -20,8 +21,8 @@ A Rust-based DHCPv4 server daemon with REST API and CLI interface.
 home-router/
 ├── crates/
 │   ├── dhcp-proto/      # DHCP packet encoding/decoding library
-│   ├── dhcp-server/     # Main daemon binary (DHCP server + REST API)
-│   └── dhcp-cli/        # CLI management tool
+│   ├── ndhcpd/          # Main daemon binary (DHCP server + REST API)
+│   └── ndhcp-cli/       # CLI management tool
 ├── scripts/             # Cross-compilation helper scripts
 ├── .cargo/config.toml   # Cargo build configuration (cross-compilation linkers)
 ├── config.example.yaml  # Example configuration file
@@ -39,8 +40,8 @@ make release
 ```
 
 The binaries will be available at:
-- Server: `target/release/dhcp-server`
-- CLI: `target/release/dhcp-cli`
+- Server: `target/release/ndhcpd`
+- CLI: `target/release/ndhcp-cli`
 
 ### Cross-compilation (FreeBSD)
 
@@ -58,37 +59,45 @@ Binaries land in `target/x86_64-unknown-freebsd/release/`.
 
 ## Configuration
 
-Create a configuration file (default: `/etc/dhcp-server/config.yaml`):
+Create a configuration file (default: `/etc/ndhcpd/config.yaml`):
 
 ```yaml
 listen_interfaces:
   - eth0
 
-database_path: /var/lib/dhcp-server/dhcp.db
+database_path: /var/lib/ndhcpd/dhcp.db
 
 api:
   listen_address: 127.0.0.1
   port: 8080
+  unix_socket: /var/run/ndhcpd.sock
 
 dhcp:
   default_lease_time: 86400
   max_lease_time: 604800
+
+# Optional: default lifetimes for IPv6 RA prefixes
+ra:
+  default_preferred_lifetime: 86400   # 24h
+  default_valid_lifetime: 2592000     # 30 days
+  default_dns_lifetime: 86400         # 24h
 ```
 
 ## Running the Server
 
 ```bash
-# Using custom config file
-DHCP_CONFIG=config.yaml ./target/release/dhcp-server
+# Using a custom config file
+DHCP_CONFIG=config.yaml ./target/release/ndhcpd
 
-# Using default config location
-./target/release/dhcp-server
+# Using the default config location (/etc/ndhcpd/config.yaml)
+./target/release/ndhcpd
 ```
 
-The server will:
-- Start the DHCP server on configured addresses (default: port 67)
-- Start the REST API server (default: http://127.0.0.1:8080)
-- Provide Swagger UI at http://127.0.0.1:8080/swagger-ui
+The daemon starts:
+- The DHCP server on configured interfaces (UDP port 67)
+- The REST API (default: `http://127.0.0.1:8080`)
+- A Unix socket listener at `/var/run/ndhcpd.sock` (no authentication required)
+- Swagger UI at `http://127.0.0.1:8080/swagger-ui`
 
 ## Using the CLI
 
@@ -96,10 +105,10 @@ The server will:
 
 ```bash
 # List all subnets
-dhcp-cli subnet list
+ndhcp-cli subnet list
 
 # Create a subnet
-dhcp-cli subnet create \
+ndhcp-cli subnet create \
   --network 192.168.1.0 \
   --netmask 24 \
   --gateway 192.168.1.1 \
@@ -107,56 +116,56 @@ dhcp-cli subnet create \
   --domain-name example.local
 
 # Get subnet details
-dhcp-cli subnet get 1
+ndhcp-cli subnet get 1
 
 # Delete a subnet
-dhcp-cli subnet delete 1
+ndhcp-cli subnet delete 1
 ```
 
 ### Dynamic Range Management
 
 ```bash
 # List all dynamic ranges
-dhcp-cli range list
+ndhcp-cli range list
 
 # List ranges for a specific subnet
-dhcp-cli range list --subnet-id 1
+ndhcp-cli range list --subnet-id 1
 
 # Create a dynamic range
-dhcp-cli range create \
+ndhcp-cli range create \
   --subnet-id 1 \
   --start 192.168.1.100 \
   --end 192.168.1.200
 
 # Delete a range
-dhcp-cli range delete 1
+ndhcp-cli range delete 1
 ```
 
 ### Static IP Management
 
 ```bash
 # List all static IPs
-dhcp-cli static list
+ndhcp-cli static list
 
 # List static IPs for a specific subnet
-dhcp-cli static list --subnet-id 1
+ndhcp-cli static list --subnet-id 1
 
 # Create a static IP assignment
-dhcp-cli static create \
+ndhcp-cli static create \
   --subnet-id 1 \
   --mac AA:BB:CC:DD:EE:FF \
   --ip 192.168.1.50 \
   --hostname mydevice
 
 # Delete a static IP
-dhcp-cli static delete 1
+ndhcp-cli static delete 1
 ```
 
 ### Lease Management
 
 ```bash
 # View active leases
-dhcp-cli leases
+ndhcp-cli leases
 ```
 
 ## REST API
@@ -185,6 +194,13 @@ The REST API is available at `http://localhost:8080/api` by default.
 #### Leases
 - `GET /api/leases` - List active leases
 
+#### IPv6 IA Prefixes
+- `GET /api/ia-prefixes` - List all IPv6 prefixes (optional `?interface=eth0`)
+- `POST /api/ia-prefixes` - Create a prefix
+- `GET /api/ia-prefixes/:id` - Get prefix details
+- `PUT /api/ia-prefixes/:id` - Update a prefix
+- `DELETE /api/ia-prefixes/:id` - Delete a prefix
+
 ### API Documentation
 
 Interactive API documentation is available via Swagger UI at:
@@ -192,16 +208,53 @@ Interactive API documentation is available via Swagger UI at:
 http://localhost:8080/swagger-ui
 ```
 
+## IPv6 / Router Advertisement
+
+`ndhcpd` does not send Router Advertisements itself. Instead, it exposes an API to manage IPv6 prefixes that an external `rtadvd` (or compatible daemon) can consume to build its RA configuration.
+
+Each IA prefix entry holds:
+
+| Field | Description |
+|---|---|
+| `interface` | Network interface to advertise the prefix on |
+| `prefix` | IPv6 network address (e.g. `2001:db8::`) |
+| `prefix_len` | Prefix length (e.g. `64`) |
+| `preferred_lifetime` | Preferred lifetime in seconds (0 = use default from `ra` config) |
+| `valid_lifetime` | Valid lifetime in seconds (0 = use default) |
+| `dns_servers` | Comma-separated IPv6 DNS servers for the RDNSS option |
+| `dns_lifetime` | DNS lifetime in seconds for the RDNSS option (0 = use default) |
+| `enabled` | Whether the prefix is active |
+
+### Example: create an IPv6 prefix
+
+```bash
+curl -s --unix-socket /var/run/ndhcpd.sock \
+  -X POST http://localhost/api/ia-prefixes \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "interface": "em0",
+    "prefix": "2001:db8::",
+    "prefix_len": 64,
+    "preferred_lifetime": 0,
+    "valid_lifetime": 0,
+    "dns_servers": "2001:db8::1",
+    "dns_lifetime": 0,
+    "enabled": true
+  }'
+```
+
+Default lifetime values (when `0` is passed) are taken from the `ra` section of the configuration file.
+
 ## Example Workflow
 
-1. Start the server:
+1. Start the daemon:
 ```bash
-DHCP_CONFIG=config.yaml ./target/release/dhcp-server
+DHCP_CONFIG=config.yaml ./target/release/ndhcpd
 ```
 
 2. Create a subnet:
 ```bash
-dhcp-cli subnet create \
+ndhcp-cli subnet create \
   --network 192.168.1.0 \
   --netmask 24 \
   --gateway 192.168.1.1 \
@@ -211,7 +264,7 @@ dhcp-cli subnet create \
 
 3. Add a dynamic range:
 ```bash
-dhcp-cli range create \
+ndhcp-cli range create \
   --subnet-id 1 \
   --start 192.168.1.100 \
   --end 192.168.1.200
@@ -219,7 +272,7 @@ dhcp-cli range create \
 
 4. Add a static IP for a device:
 ```bash
-dhcp-cli static create \
+ndhcp-cli static create \
   --subnet-id 1 \
   --mac 00:11:22:33:44:55 \
   --ip 192.168.1.10 \
@@ -228,7 +281,7 @@ dhcp-cli static create \
 
 5. Monitor leases:
 ```bash
-dhcp-cli leases
+ndhcp-cli leases
 ```
 
 ## Dependencies

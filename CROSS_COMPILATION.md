@@ -83,8 +83,8 @@ make freebsd-release
 Binaries land in:
 
 ```
-target/x86_64-unknown-freebsd/release/dhcp-server
-target/x86_64-unknown-freebsd/release/dhcp-cli
+target/x86_64-unknown-freebsd/release/ndhcpd
+target/x86_64-unknown-freebsd/release/ndhcp-cli
 ```
 
 ### How it works

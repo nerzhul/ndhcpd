@@ -1,7 +1,7 @@
 use crate::client::{AlreadyExistsError, ApiClient};
 use crate::RangeCommands;
 use anyhow::Result;
-use dhcp_server::models::DynamicRange;
+use ndhcpd::models::DynamicRange;
 use std::net::Ipv4Addr;
 
 pub async fn handle(client: ApiClient, action: RangeCommands) -> Result<()> {

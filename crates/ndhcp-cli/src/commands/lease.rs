@@ -1,7 +1,7 @@
 use crate::client::ApiClient;
 use anyhow::Result;
 use chrono::{DateTime, Utc};
-use dhcp_server::models::Lease;
+use ndhcpd::models::Lease;
 
 pub async fn list(client: ApiClient) -> Result<()> {
     let leases: Vec<Lease> = client.get("/api/leases").await?;

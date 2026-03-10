@@ -1,7 +1,7 @@
 [workspace]
 members = [
-    "crates/dhcp-server",
-    "crates/dhcp-cli",
+    "crates/ndhcpd",
+    "crates/ndhcp-cli",
     "crates/dhcp-proto",
 ]
 resolver = "2"
@@ -9,7 +9,7 @@ resolver = "2"
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
-authors = ["Your Name <your.email@example.com>"]
+authors = ["Loïc BLOT <loic.blot@unix-experience.fr>"]
 license = "MIT"
 
 [workspace.dependencies]

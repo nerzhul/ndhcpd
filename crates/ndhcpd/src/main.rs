@@ -1,6 +1,6 @@
 use anyhow::Result;
 use clap::Parser;
-use dhcp_server::{
+use ndhcpd::{
     config::RaConfig, create_database, create_router_with_auth, dhcp::DhcpServer, Config,
 };
 use std::sync::Arc;
@@ -13,7 +13,7 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 #[command(author, version, about, long_about = None)]
 struct Args {
     /// Configuration file path
-    #[arg(short, long, default_value = "/etc/dhcp-server/config.yaml")]
+    #[arg(short, long, default_value = "/etc/ndhcpd/config.yaml")]
     config: String,
 
     /// Data directory for database and other files
@@ -33,7 +33,7 @@ async fn main() -> Result<()> {
     tracing_subscriber::registry()
         .with(
             tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "dhcp_server=debug".into()),
+                .unwrap_or_else(|_| "ndhcpd=debug".into()),
         )
         .with(tracing_subscriber::fmt::layer())
         .init();
@@ -43,7 +43,7 @@ async fn main() -> Result<()> {
     // Load configuration - try specified path, then current directory
     let config_path = if std::path::Path::new(&args.config).exists() {
         args.config.clone()
-    } else if args.config == "/etc/dhcp-server/config.yaml" {
+    } else if args.config == "/etc/ndhcpd/config.yaml" {
         // If default path doesn't exist, try current directory
         let current_dir_config = "config.yaml";
         if std::path::Path::new(current_dir_config).exists() {

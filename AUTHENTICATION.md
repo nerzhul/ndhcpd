@@ -12,7 +12,7 @@ Authentication can be enabled/disabled in the `config.yaml` configuration file:
 api:
   listen_address: 127.0.0.1
   port: 8080
-  unix_socket: /var/run/dhcp-server.sock
+  unix_socket: /var/run/ndhcpd.sock
   require_authentication: true  # Enable authentication
 ```
 
@@ -27,7 +27,7 @@ api:
 
 Via Unix socket (no authentication):
 ```bash
-curl --unix-socket /var/run/dhcp-server.sock \
+curl --unix-socket /var/run/ndhcpd.sock \
   -X POST http://localhost/api/tokens \
   -H "Content-Type: application/json" \
   -d '{"name": "my-token"}'
@@ -47,21 +47,21 @@ Response:
 ### List tokens
 
 ```bash
-curl --unix-socket /var/run/dhcp-server.sock \
+curl --unix-socket /var/run/ndhcpd.sock \
   http://localhost/api/tokens
 ```
 
 ### Disable/Enable a token
 
 ```bash
-curl --unix-socket /var/run/dhcp-server.sock \
+curl --unix-socket /var/run/ndhcpd.sock \
   -X PATCH http://localhost/api/tokens/1/toggle
 ```
 
 ### Delete a token
 
 ```bash
-curl --unix-socket /var/run/dhcp-server.sock \
+curl --unix-socket /var/run/ndhcpd.sock \
   -X DELETE http://localhost/api/tokens/1
 ```
 
@@ -114,12 +114,12 @@ api:
 
 2. Restart the server:
 ```bash
-systemctl restart dhcp-server
+systemctl restart ndhcpd
 ```
 
 3. Create a token (via Unix socket):
 ```bash
-TOKEN=$(curl -s --unix-socket /var/run/dhcp-server.sock \
+TOKEN=$(curl -s --unix-socket /var/run/ndhcpd.sock \
   -X POST http://localhost/api/tokens \
   -H "Content-Type: application/json" \
   -d '{"name": "admin-token"}' | jq -r '.token')

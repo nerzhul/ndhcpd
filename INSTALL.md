@@ -12,53 +12,53 @@ cargo build --release
 
 ```bash
 # Create system user
-sudo useradd -r -s /bin/false dhcp-server
+sudo useradd -r -s /bin/false ndhcpd
 
 # Create directories
-sudo mkdir -p /etc/dhcp-server
-sudo mkdir -p /var/lib/dhcp-server
+sudo mkdir -p /etc/ndhcpd
+sudo mkdir -p /var/lib/ndhcpd
 
 # Set ownership
-sudo chown dhcp-server:dhcp-server /var/lib/dhcp-server
+sudo chown ndhcpd:ndhcpd /var/lib/ndhcpd
 ```
 
 ### 3. Install Binaries
 
 ```bash
-sudo cp target/release/dhcp-server /usr/local/bin/
-sudo cp target/release/dhcp-cli /usr/local/bin/
-sudo chmod +x /usr/local/bin/dhcp-server
-sudo chmod +x /usr/local/bin/dhcp-cli
+sudo cp target/release/ndhcpd /usr/local/bin/
+sudo cp target/release/ndhcp-cli /usr/local/bin/
+sudo chmod +x /usr/local/bin/ndhcpd
+sudo chmod +x /usr/local/bin/ndhcp-cli
 
 # Grant capability to bind to port 67
-sudo setcap 'cap_net_bind_service=+ep' /usr/local/bin/dhcp-server
+sudo setcap 'cap_net_bind_service=+ep' /usr/local/bin/ndhcpd
 ```
 
 ### 4. Install Configuration
 
 ```bash
-sudo cp config.example.yaml /etc/dhcp-server/config.yaml
-sudo chown root:root /etc/dhcp-server/config.yaml
-sudo chmod 644 /etc/dhcp-server/config.yaml
+sudo cp config.example.yaml /etc/ndhcpd/config.yaml
+sudo chown root:root /etc/ndhcpd/config.yaml
+sudo chmod 644 /etc/ndhcpd/config.yaml
 
 # Edit configuration as needed
-sudo nano /etc/dhcp-server/config.yaml
+sudo nano /etc/ndhcpd/config.yaml
 ```
 
 ### 5. Install Systemd Service
 
 ```bash
-sudo cp dhcp-server.service /etc/systemd/system/
+sudo cp ndhcpd.service /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable dhcp-server
-sudo systemctl start dhcp-server
+sudo systemctl enable ndhcpd
+sudo systemctl start ndhcpd
 ```
 
 ### 6. Check Status
 
 ```bash
-sudo systemctl status dhcp-server
-sudo journalctl -u dhcp-server -f
+sudo systemctl status ndhcpd
+sudo journalctl -u ndhcpd -f
 ```
 
 ## Usage
@@ -67,17 +67,17 @@ The CLI can be used by any user:
 
 ```bash
 # List subnets
-dhcp-cli subnet list
+`ndhcp-cli subnet list
 
 # Create a subnet
-dhcp-cli subnet create \
+`ndhcp-cli subnet create \
   --network 192.168.1.0 \
   --netmask 24 \
   --gateway 192.168.1.1 \
   --dns-servers 8.8.8.8,8.8.4.4
 
 # Add dynamic range
-dhcp-cli range create \
+`ndhcp-cli range create \
   --subnet-id 1 \
   --start 192.168.1.100 \
   --end 192.168.1.200
@@ -87,18 +87,18 @@ dhcp-cli range create \
 
 ```bash
 # Stop and disable service
-sudo systemctl stop dhcp-server
-sudo systemctl disable dhcp-server
+sudo systemctl stop ndhcpd
+sudo systemctl disable ndhcpd
 
 # Remove files
-sudo rm /etc/systemd/system/dhcp-server.service
-sudo rm /usr/local/bin/dhcp-server
-sudo rm /usr/local/bin/dhcp-cli
-sudo rm -rf /etc/dhcp-server
-sudo rm -rf /var/lib/dhcp-server
+sudo rm /etc/systemd/system/ndhcpd.service
+sudo rm /usr/local/bin/ndhcpd
+sudo rm /usr/local/bin/ndhcp-cli
+sudo rm -rf /etc/ndhcpd
+sudo rm -rf /var/lib/ndhcpd
 
 # Remove user
-sudo userdel dhcp-server
+sudo userdel ndhcpd
 
 # Reload systemd
 sudo systemctl daemon-reload
@@ -116,22 +116,22 @@ RUN cargo build --release
 
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y libsqlite3-0 && rm -rf /var/lib/apt/lists/*
-COPY --from=builder /app/target/release/dhcp-server /usr/local/bin/
-COPY config.example.yaml /etc/dhcp-server/config.yaml
-RUN mkdir -p /var/lib/dhcp-server
+COPY --from=builder /app/target/release/ndhcpd /usr/local/bin/
+COPY config.example.yaml /etc/ndhcpd/config.yaml
+RUN mkdir -p /var/lib/ndhcpd
 EXPOSE 67/udp 8080/tcp
-CMD ["/usr/local/bin/dhcp-server"]
+CMD ["/usr/local/bin/ndhcpd"]
 ```
 
 Build and run:
 
 ```bash
-docker build -t dhcp-server .
+docker build -t ndhcpd .
 docker run -d \
-  --name dhcp-server \
+  --name ndhcpd \
   -p 67:67/udp \
   -p 8080:8080 \
-  -v /etc/dhcp-server:/etc/dhcp-server \
-  -v /var/lib/dhcp-server:/var/lib/dhcp-server \
-  dhcp-server
+  -v /etc/ndhcpd:/etc/ndhcpd \
+  -v /var/lib/ndhcpd:/var/lib/ndhcpd \
+  ndhcpd
 ```

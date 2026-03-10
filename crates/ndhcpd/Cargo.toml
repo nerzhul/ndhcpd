@@ -1,12 +1,12 @@
 [package]
-name = "dhcp-server"
+name = "ndhcpd"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
 
 [[bin]]
-name = "dhcp-server"
+name = "ndhcpd"
 path = "src/main.rs"
 
 [dependencies]

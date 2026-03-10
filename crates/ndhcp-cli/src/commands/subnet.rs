@@ -1,7 +1,7 @@
 use crate::client::{AlreadyExistsError, ApiClient};
 use crate::SubnetCommands;
 use anyhow::Result;
-use dhcp_server::models::Subnet;
+use ndhcpd::models::Subnet;
 use std::net::Ipv4Addr;
 
 pub async fn handle(client: ApiClient, action: SubnetCommands) -> Result<()> {

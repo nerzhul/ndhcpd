@@ -1,12 +1,12 @@
 [package]
-name = "dhcp-cli"
+name = "ndhcp-cli"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
 
 [dependencies]
-dhcp-server = { path = "../dhcp-server" }
+ndhcpd = { path = "../ndhcpd" }
 clap = { workspace = true }
 tokio = { workspace = true }
 hyper = { version = "1.5", features = ["client", "http1"] }
