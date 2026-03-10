@@ -19,23 +19,42 @@ A Rust-based DHCPv4 server daemon with REST API and CLI interface.
 ```
 home-router/
 ├── crates/
-│   ├── dhcp-core/       # Core library with models, DB, and DHCP logic
-│   ├── dhcp-api/        # REST API server
-│   ├── dhcp-server/     # Main daemon binary
-│   └── dhcp-cli/        # CLI tool
-├── config.example.yaml  # Example configuration
+│   ├── dhcp-proto/      # DHCP packet encoding/decoding library
+│   ├── dhcp-server/     # Main daemon binary (DHCP server + REST API)
+│   └── dhcp-cli/        # CLI management tool
+├── scripts/             # Cross-compilation helper scripts
+├── .cargo/config.toml   # Cargo build configuration (cross-compilation linkers)
+├── config.example.yaml  # Example configuration file
 └── README.md
 ```
 
 ## Building
 
+### Native (Linux)
+
 ```bash
 cargo build --release
+# or
+make release
 ```
 
 The binaries will be available at:
 - Server: `target/release/dhcp-server`
 - CLI: `target/release/dhcp-cli`
+
+### Cross-compilation (FreeBSD)
+
+See [CROSS_COMPILATION.md](CROSS_COMPILATION.md) for the full guide.
+
+Quick start (requires `clang` and `llvm-ar`):
+
+```bash
+rustup target add x86_64-unknown-freebsd
+make freebsd-sysroot   # download FreeBSD 14 sysroot (once)
+make freebsd-release   # build for FreeBSD x86_64
+```
+
+Binaries land in `target/x86_64-unknown-freebsd/release/`.
 
 ## Configuration
 

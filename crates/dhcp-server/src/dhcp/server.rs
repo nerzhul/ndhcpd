@@ -1,5 +1,4 @@
 use std::collections::HashSet;
-use std::ffi::CString;
 use std::net::{Ipv4Addr, SocketAddr, UdpSocket};
 use std::os::unix::io::AsRawFd;
 use std::sync::Arc;
@@ -11,6 +10,88 @@ use crate::db::{Database, DynDatabase};
 
 const DHCP_SERVER_PORT: u16 = 67;
 const DHCP_CLIENT_PORT: u16 = 68;
+
+/// Bind `socket` to a specific network interface so that only packets arriving
+/// on that interface are received.
+///
+/// * Linux  – uses `SO_BINDTODEVICE` (SOL_SOCKET), passing the interface name.
+/// * FreeBSD – uses `IP_BOUND_IF` (IPPROTO_IP), passing the interface index.
+fn bind_socket_to_interface(socket: &UdpSocket, interface: &str) -> anyhow::Result<()> {
+    #[cfg(target_os = "linux")]
+    {
+        use std::ffi::CString;
+
+        let iface_cstr = CString::new(interface)?;
+        let ret = unsafe {
+            libc::setsockopt(
+                socket.as_raw_fd(),
+                libc::SOL_SOCKET,
+                libc::SO_BINDTODEVICE,
+                iface_cstr.as_ptr() as *const libc::c_void,
+                iface_cstr.as_bytes_with_nul().len() as libc::socklen_t,
+            )
+        };
+        if ret != 0 {
+            return Err(anyhow::anyhow!(
+                "Failed to bind socket to interface {}: {}",
+                interface,
+                std::io::Error::last_os_error()
+            ));
+        }
+        Ok(())
+    }
+
+    #[cfg(target_os = "freebsd")]
+    {
+        use std::ffi::CString;
+
+        // SO_BINDTODEVICE was added to FreeBSD 14.0 as a Linux-compatibility
+        // option. The libc crate does not expose it yet for the freebsd target,
+        // so we define the constant ourselves.
+        // Older FreeBSD kernels will reject the call with ENOPROTOOPT; we log a
+        // warning and continue rather than aborting so that the server still
+        // works on FreeBSD < 14 (interface isolation is then left to routing).
+        const SO_BINDTODEVICE_FREEBSD: libc::c_int = 0x10000;
+
+        let iface_cstr = CString::new(interface)?;
+        let ret = unsafe {
+            libc::setsockopt(
+                socket.as_raw_fd(),
+                libc::SOL_SOCKET,
+                SO_BINDTODEVICE_FREEBSD,
+                iface_cstr.as_ptr() as *const libc::c_void,
+                iface_cstr.as_bytes_with_nul().len() as libc::socklen_t,
+            )
+        };
+        if ret != 0 {
+            let err = std::io::Error::last_os_error();
+            // ENOPROTOOPT (42) means the kernel is older than FreeBSD 14 and
+            // does not support SO_BINDTODEVICE; degrade gracefully.
+            if err.raw_os_error() == Some(libc::ENOPROTOOPT) {
+                tracing::warn!(
+                    "SO_BINDTODEVICE is not supported on this FreeBSD kernel; \
+                     interface {} isolation relies on routing only",
+                    interface
+                );
+            } else {
+                return Err(anyhow::anyhow!(
+                    "Failed to bind socket to interface {}: {}",
+                    interface,
+                    err
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    #[cfg(not(any(target_os = "linux", target_os = "freebsd")))]
+    {
+        let _ = (socket, interface);
+        Err(anyhow::anyhow!(
+            "Binding socket to interface is not supported on this platform"
+        ))
+    }
+}
 
 pub struct DhcpServer {
     config: Arc<Config>,
@@ -56,24 +137,11 @@ impl DhcpServer {
         socket.set_broadcast(true)?;
 
         // Bind the socket to the specific network interface so only packets
-        // arriving on that interface are received (SO_BINDTODEVICE).
-        let iface_cstr = CString::new(interface.as_str())?;
-        let ret = unsafe {
-            libc::setsockopt(
-                socket.as_raw_fd(),
-                libc::SOL_SOCKET,
-                libc::SO_BINDTODEVICE,
-                iface_cstr.as_ptr() as *const libc::c_void,
-                iface_cstr.as_bytes_with_nul().len() as libc::socklen_t,
-            )
-        };
-        if ret != 0 {
-            return Err(anyhow::anyhow!(
-                "Failed to bind socket to interface {}: {}",
-                interface,
-                std::io::Error::last_os_error()
-            ));
-        }
+        // arriving on that interface are received.
+        //
+        // Linux:   SO_BINDTODEVICE (SOL_SOCKET) – pass interface name as string.
+        // FreeBSD: IP_BOUND_IF     (IPPROTO_IP) – pass interface index as u32.
+        bind_socket_to_interface(&socket, &interface)?;
 
         info!(
             "DHCP server listening on interface {} (0.0.0.0:{})",

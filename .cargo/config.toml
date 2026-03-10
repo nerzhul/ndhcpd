@@ -1,0 +1,19 @@
+# Cross-compilation configuration.
+#
+# FreeBSD target
+# --------------
+# Requires clang and a FreeBSD sysroot. To prepare the sysroot, run:
+#   ./scripts/fetch-freebsd-sysroot.sh
+#
+# The sysroot path can be overridden at build time:
+#   FREEBSD_SYSROOT=/path/to/sysroot cargo build --target x86_64-unknown-freebsd
+
+[target.x86_64-unknown-freebsd]
+linker = "scripts/freebsd-linker.sh"
+
+# CC and AR for build scripts (e.g. libsqlite3-sys compiling sqlite3.c).
+# Without these, the host Linux cc is used, producing Linux-ABI object files
+# with glibc symbols absent on FreeBSD.
+[env]
+CC_x86_64_unknown_freebsd = { value = "scripts/freebsd-cc.sh", relative = true }
+AR_x86_64_unknown_freebsd = "llvm-ar"
