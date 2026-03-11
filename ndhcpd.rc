@@ -15,15 +15,16 @@ load_rc_config $name
 : ${ndhcpd_enable:="NO"}
 : ${ndhcpd_user:="root"}
 : ${ndhcpd_group:="wheel"}
+: ${ndhcpd_config:="/usr/local/etc/ndhcpd/config.yaml"}
 : ${ndhcpd_log:="info"}
 
-command="/usr/local/bin/ndhcpd"
-command_interpreter=""
+# Use daemon(8) to daemonize and manage the pidfile
+procname="/usr/local/bin/ndhcpd"
+command="/usr/sbin/daemon"
 pidfile="/var/run/${name}.pid"
 
 ndhcpd_env="RUST_LOG=${ndhcpd_log}"
 
-command_args=""
+command_args="-f -p ${pidfile} -u ${ndhcpd_user} ${procname} --config ${ndhcpd_config}"
 
-load_rc_config $name
 run_rc_command "$1"
