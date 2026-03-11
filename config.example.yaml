@@ -5,7 +5,7 @@ listen_interfaces:
   - eth0
 
 # Database configuration
-database_path: /var/lib/ndhcpd/dhcp.db
+database_path: /var/lib/ndhcpd/dhcp.db  # FreeBSD: /var/db/ndhcpd.db
 
 # API Server configuration
 api:

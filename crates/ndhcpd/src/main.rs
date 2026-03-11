@@ -8,12 +8,17 @@ use tower::ServiceExt;
 use tracing::{error, info};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
+#[cfg(target_os = "freebsd")]
+const DEFAULT_CONFIG_PATH: &str = "/usr/local/etc/ndhcpd/config.yaml";
+#[cfg(not(target_os = "freebsd"))]
+const DEFAULT_CONFIG_PATH: &str = "/etc/ndhcpd/config.yaml";
+
 /// DHCP Server - A simple DHCP server with API
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
     /// Configuration file path
-    #[arg(short, long, default_value = "/etc/ndhcpd/config.yaml")]
+    #[arg(short, long, default_value = DEFAULT_CONFIG_PATH)]
     config: String,
 
     /// Data directory for database and other files
@@ -43,7 +48,7 @@ async fn main() -> Result<()> {
     // Load configuration - try specified path, then current directory
     let config_path = if std::path::Path::new(&args.config).exists() {
         args.config.clone()
-    } else if args.config == "/etc/ndhcpd/config.yaml" {
+    } else if args.config == DEFAULT_CONFIG_PATH {
         // If default path doesn't exist, try current directory
         let current_dir_config = "config.yaml";
         if std::path::Path::new(current_dir_config).exists() {

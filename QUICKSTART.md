@@ -191,7 +191,7 @@ RUST_LOG=debug DHCP_CONFIG=config.yaml ./target/release/ndhcpd
 
 ### Database location
 
-By default, database is at `/var/lib/ndhcpd/dhcp.db`.
+By default, database is at `/var/lib/ndhcpd/dhcp.db` (Linux) or `/var/db/ndhcpd.db` (FreeBSD).
 Ensure the directory exists and is writable, or use a different path in config.
 
 ## License

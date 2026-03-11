@@ -22,7 +22,10 @@ pub struct Config {
 }
 
 fn default_db_path() -> String {
-    "/var/lib/ndhcpd/dhcp.db".to_string()
+    #[cfg(target_os = "freebsd")]
+    return "/var/db/ndhcpd.db".to_string();
+    #[cfg(not(target_os = "freebsd"))]
+    return "/var/lib/ndhcpd/dhcp.db".to_string();
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -13,24 +13,17 @@ desc="DHCP Server Daemon"
 load_rc_config $name
 
 : ${ndhcpd_enable:="NO"}
-: ${ndhcpd_user:="ndhcpd"}
-: ${ndhcpd_group:="ndhcpd"}
-: ${ndhcpd_config:="/usr/local/etc/ndhcpd/config.yaml"}
+: ${ndhcpd_user:="root"}
+: ${ndhcpd_group:="wheel"}
 : ${ndhcpd_log:="info"}
 
 command="/usr/local/bin/ndhcpd"
 command_interpreter=""
 pidfile="/var/run/${name}.pid"
 
-ndhcpd_env="DHCP_CONFIG=${ndhcpd_config} RUST_LOG=${ndhcpd_log}"
+ndhcpd_env="RUST_LOG=${ndhcpd_log}"
 
-start_precmd="${name}_prestart"
 command_args=""
-
-ndhcpd_prestart()
-{
-    install -d -o ${ndhcpd_user} -g ${ndhcpd_group} -m 750 /var/lib/ndhcpd
-}
 
 load_rc_config $name
 run_rc_command "$1"
