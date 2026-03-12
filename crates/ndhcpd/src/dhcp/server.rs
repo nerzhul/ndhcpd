@@ -14,8 +14,9 @@ const DHCP_CLIENT_PORT: u16 = 68;
 /// Bind `socket` to a specific network interface so that only packets arriving
 /// on that interface are received.
 ///
-/// * Linux  – uses `SO_BINDTODEVICE` (SOL_SOCKET), passing the interface name.
-/// * FreeBSD – uses `IP_BOUND_IF` (IPPROTO_IP), passing the interface index.
+/// * Linux   – uses `SO_BINDTODEVICE` (SOL_SOCKET), passing the interface name.
+/// * FreeBSD – attempts `SO_BINDTODEVICE` (FreeBSD 14+); degrades gracefully on
+///             older kernels (socket then accepts packets from all interfaces).
 fn bind_socket_to_interface(socket: &UdpSocket, interface: &str) -> anyhow::Result<()> {
     #[cfg(target_os = "linux")]
     {
@@ -93,6 +94,94 @@ fn bind_socket_to_interface(socket: &UdpSocket, interface: &str) -> anyhow::Resu
     }
 }
 
+/// Creates a UDP socket used exclusively for sending DHCP broadcast responses.
+///
+/// On FreeBSD, broadcasting to `255.255.255.255` from a socket bound to
+/// `0.0.0.0` fails with `ENETUNREACH`/`EHOSTUNREACH` because the kernel
+/// consults the routing table and finds no entry for the limited broadcast.
+///
+/// The fix combines two things:
+/// 1. Bind the send socket to the interface's own IPv4 address so the kernel
+///    knows which interface the packet should leave on.
+/// 2. Set `SO_DONTROUTE` so the kernel bypasses the routing table entirely
+///    and sends directly on the locally-connected network.
+///
+/// This socket is only used when the DHCP BROADCAST flag is set in the client
+/// request (RFC 2131 §4.1).  Most modern clients do NOT set this flag, so the
+/// common path unicasts to `yiaddr` using the regular socket instead.
+///
+/// On Linux, `SO_BINDTODEVICE` on the receive socket already pins the
+/// interface, and the routing table normally has a broadcast route, so
+/// neither workaround is needed.
+fn create_broadcast_send_socket(interface: &str) -> anyhow::Result<UdpSocket> {
+    #[cfg(target_os = "freebsd")]
+    {
+        let iface_ips = get_interface_ips(interface);
+        if let Some(iface_ip) = iface_ips.first() {
+            let send_addr = SocketAddr::new((*iface_ip).into(), 0);
+            let s = UdpSocket::bind(send_addr)?;
+            s.set_broadcast(true)?;
+            // Bypass the routing table so that 255.255.255.255 is sent
+            // directly on the interface's connected link.
+            let one: libc::c_int = 1;
+            let ret = unsafe {
+                libc::setsockopt(
+                    s.as_raw_fd(),
+                    libc::SOL_SOCKET,
+                    libc::SO_DONTROUTE,
+                    &one as *const libc::c_int as *const libc::c_void,
+                    std::mem::size_of::<libc::c_int>() as libc::socklen_t,
+                )
+            };
+            if ret != 0 {
+                return Err(anyhow::anyhow!(
+                    "Failed to set SO_DONTROUTE on broadcast send socket: {}",
+                    std::io::Error::last_os_error()
+                ));
+            }
+            return Ok(s);
+        }
+        warn!(
+            "No IPv4 address found on interface {}; falling back to 0.0.0.0 for broadcast sends",
+            interface
+        );
+    }
+
+    let s = UdpSocket::bind(SocketAddr::new(Ipv4Addr::UNSPECIFIED.into(), 0))?;
+    s.set_broadcast(true)?;
+    Ok(s)
+}
+
+/// Determines the UDP destination for a DHCP server response per RFC 2131 §4.1.
+///
+/// Rules applied in order:
+/// 1. `giaddr` != 0 (relay agent): send to relay agent on port 67.
+/// 2. `ciaddr` != 0 (client has a configured IP): unicast to `ciaddr:68`.
+/// 3. BROADCAST flag set in client request: broadcast to `255.255.255.255:68`.
+/// 4. Otherwise: unicast to the offered/assigned IP (`yiaddr`) on port 68.
+fn response_dest(
+    request: &DhcpPacket,
+    response: &DhcpPacket,
+) -> SocketAddr {
+    const BROADCAST_FLAG: u16 = 0x8000;
+    let unspecified = Ipv4Addr::UNSPECIFIED;
+
+    if request.giaddr != unspecified {
+        // Relay agent present – return to relay on the DHCP server port
+        SocketAddr::new(request.giaddr.into(), DHCP_SERVER_PORT)
+    } else if request.ciaddr != unspecified {
+        // Client already has an IP address (RENEWING/REBINDING)
+        SocketAddr::new(request.ciaddr.into(), DHCP_CLIENT_PORT)
+    } else if request.flags & BROADCAST_FLAG != 0 {
+        // Client explicitly requested a broadcast reply
+        SocketAddr::new(Ipv4Addr::new(255, 255, 255, 255).into(), DHCP_CLIENT_PORT)
+    } else {
+        // Unicast to the offered/assigned address – works on all platforms
+        // without any special socket options.
+        SocketAddr::new(response.yiaddr.into(), DHCP_CLIENT_PORT)
+    }
+}
+
 pub struct DhcpServer {
     config: Arc<Config>,
     db: DynDatabase,
@@ -140,8 +229,15 @@ impl DhcpServer {
         // arriving on that interface are received.
         //
         // Linux:   SO_BINDTODEVICE (SOL_SOCKET) – pass interface name as string.
-        // FreeBSD: IP_BOUND_IF     (IPPROTO_IP) – pass interface index as u32.
+        // FreeBSD: SO_BINDTODEVICE (SOL_SOCKET, FreeBSD 14+); degrades gracefully
+        //          on older kernels (packets from all interfaces are then accepted).
         bind_socket_to_interface(&socket, &interface)?;
+
+        // Create a dedicated socket for sending DHCP broadcast responses.
+        // Required on FreeBSD when the client sets the BROADCAST flag (see
+        // create_broadcast_send_socket for details).  For unicast responses
+        // (the common case per RFC 2131 §4.1) the main socket is used instead.
+        let broadcast_send_socket = create_broadcast_send_socket(&interface);
 
         info!(
             "DHCP server listening on interface {} (0.0.0.0:{})",
@@ -171,11 +267,28 @@ impl DhcpServer {
 
             if let Some(response_packet) = response {
                 let response_bytes = response_packet.to_bytes();
-                let broadcast_addr =
-                    SocketAddr::new(Ipv4Addr::new(255, 255, 255, 255).into(), DHCP_CLIENT_PORT);
+                // Determine destination per RFC 2131 §4.1:
+                //   giaddr != 0  → relay agent on port 67
+                //   ciaddr != 0  → unicast to ciaddr:68
+                //   BROADCAST flag → 255.255.255.255:68  (broadcast socket)
+                //   otherwise   → unicast to yiaddr:68  (works on all platforms)
+                let dest = response_dest(&packet, &response_packet);
+                let is_broadcast =
+                    dest.ip() == std::net::IpAddr::V4(Ipv4Addr::new(255, 255, 255, 255));
 
-                if let Err(e) = socket.send_to(&response_bytes, broadcast_addr) {
-                    warn!("Failed to send DHCP response: {}", e);
+                let result = if is_broadcast {
+                    // Use the dedicated socket with SO_DONTROUTE for FreeBSD
+                    // compatibility (see create_broadcast_send_socket).
+                    match &broadcast_send_socket {
+                        Ok(s) => s.send_to(&response_bytes, dest),
+                        Err(_) => socket.send_to(&response_bytes, dest),
+                    }
+                } else {
+                    socket.send_to(&response_bytes, dest)
+                };
+
+                if let Err(e) = result {
+                    warn!("Failed to send DHCP response to {}: {}", dest, e);
                 }
             }
         }
