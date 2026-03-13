@@ -532,7 +532,6 @@ impl DhcpServer {
             lease_start: now,
             lease_end: now + config.dhcp.default_lease_time as i64,
             hostname,
-            active: true,
         };
 
         if let Err(e) = db.create_lease(&lease).await {
@@ -823,7 +822,6 @@ mod tests {
             lease_start: now,
             lease_end: now + 86400,
             hostname: None,
-            active: true,
         };
         db.create_lease(&lease).await.unwrap();
 
@@ -893,7 +891,6 @@ mod tests {
             lease_start: now,
             lease_end: now + 86400,
             hostname: None,
-            active: true,
         };
         db.create_lease(&lease).await.unwrap();
 
@@ -968,7 +965,6 @@ mod tests {
             lease_start: now,
             lease_end: now + 86400,
             hostname: None,
-            active: true,
         };
         db.create_lease(&lease).await.unwrap();
 
@@ -1043,7 +1039,6 @@ mod tests {
             lease_start: now,
             lease_end: now + 86400,
             hostname: None,
-            active: true,
         };
         db.create_lease(&existing).await.unwrap();
 
@@ -1168,7 +1163,6 @@ mod tests {
             lease_start: now,
             lease_end: now + 86400,
             hostname: None,
-            active: true,
         };
         let _lease_id = db.create_lease(&lease).await.unwrap();
 

@@ -262,7 +262,7 @@ impl Database for SqliteDatabase {
     // Lease operations
     async fn create_lease(&self, lease: &Lease) -> anyhow::Result<i64> {
         let result = sqlx::query(
-            "INSERT INTO leases (subnet_id, mac_address, ip_address, lease_start, lease_end, hostname, active) VALUES (?, ?, ?, ?, ?, ?, ?)"
+            "INSERT INTO leases (subnet_id, mac_address, ip_address, lease_start, lease_end, hostname) VALUES (?, ?, ?, ?, ?, ?)"
         )
         .bind(lease.subnet_id)
         .bind(&lease.mac_address)
@@ -270,7 +270,6 @@ impl Database for SqliteDatabase {
         .bind(lease.lease_start)
         .bind(lease.lease_end)
         .bind(&lease.hostname)
-        .bind(lease.active as i64)
         .execute(&self.pool)
         .await?;
 
@@ -280,7 +279,7 @@ impl Database for SqliteDatabase {
     async fn get_active_lease(&self, mac: &str) -> anyhow::Result<Option<Lease>> {
         let now = chrono::Utc::now().timestamp();
         let row = sqlx::query(
-            "SELECT id, subnet_id, mac_address, ip_address, lease_start, lease_end, hostname, active FROM leases WHERE mac_address = ? AND active = 1 AND lease_end > ? ORDER BY lease_end DESC LIMIT 1"
+            "SELECT id, subnet_id, mac_address, ip_address, lease_start, lease_end, hostname FROM leases WHERE mac_address = ? AND lease_end > ? ORDER BY lease_end DESC LIMIT 1"
         )
         .bind(mac)
         .bind(now)
@@ -295,14 +294,13 @@ impl Database for SqliteDatabase {
             lease_start: r.get("lease_start"),
             lease_end: r.get("lease_end"),
             hostname: r.get("hostname"),
-            active: r.get::<i64, _>("active") != 0,
         }))
     }
 
     async fn list_active_leases(&self) -> anyhow::Result<Vec<Lease>> {
         let now = chrono::Utc::now().timestamp();
         let rows = sqlx::query(
-            "SELECT id, subnet_id, mac_address, ip_address, lease_start, lease_end, hostname, active FROM leases WHERE active = 1 AND lease_end > ?"
+            "SELECT id, subnet_id, mac_address, ip_address, lease_start, lease_end, hostname FROM leases WHERE lease_end > ?"
         )
         .bind(now)
         .fetch_all(&self.pool)
@@ -318,13 +316,12 @@ impl Database for SqliteDatabase {
                 lease_start: r.get("lease_start"),
                 lease_end: r.get("lease_end"),
                 hostname: r.get("hostname"),
-                active: r.get::<i64, _>("active") != 0,
             })
             .collect())
     }
 
     async fn expire_lease(&self, id: i64) -> anyhow::Result<()> {
-        sqlx::query("UPDATE leases SET active = 0 WHERE id = ?")
+        sqlx::query("DELETE FROM leases WHERE id = ?")
             .bind(id)
             .execute(&self.pool)
             .await?;

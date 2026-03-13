@@ -95,10 +95,6 @@ pub struct Lease {
 
     /// Optional hostname
     pub hostname: Option<String>,
-
-    /// Whether this is an active lease
-    #[serde(default = "default_true")]
-    pub active: bool,
 }
 
 // Helper functions for converting between String and Ipv4Addr for sqlx

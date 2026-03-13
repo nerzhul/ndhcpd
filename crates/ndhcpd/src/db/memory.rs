@@ -182,7 +182,7 @@ impl Database for InMemoryDatabase {
         let leases = self.leases.read().await;
         Ok(leases
             .iter()
-            .find(|l| l.mac_address == mac && l.active && l.lease_end > now)
+            .find(|l| l.mac_address == mac && l.lease_end > now)
             .cloned())
     }
 
@@ -191,16 +191,14 @@ impl Database for InMemoryDatabase {
         let leases = self.leases.read().await;
         Ok(leases
             .iter()
-            .filter(|l| l.active && l.lease_end > now)
+            .filter(|l| l.lease_end > now)
             .cloned()
             .collect())
     }
 
     async fn expire_lease(&self, id: i64) -> anyhow::Result<()> {
         let mut leases = self.leases.write().await;
-        if let Some(lease) = leases.iter_mut().find(|l| l.id == Some(id)) {
-            lease.active = false;
-        }
+        leases.retain(|l| l.id != Some(id));
         Ok(())
     }
 

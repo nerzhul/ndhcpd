@@ -48,7 +48,6 @@ pub(crate) mod suite {
             lease_start: now,
             lease_end: now + 3600,
             hostname: Some("test-host".to_string()),
-            active: true,
         }
     }
 
@@ -219,7 +218,6 @@ pub(crate) mod suite {
             .expect("lease not found");
         assert_eq!(lease.mac_address, "aa:bb:cc:dd:ee:10");
         assert_eq!(lease.ip_address, Ipv4Addr::new(10, 0, 30, 80));
-        assert!(lease.active);
     }
 
     pub async fn test_list_active_leases(db: &dyn Database) {
@@ -254,7 +252,6 @@ pub(crate) mod suite {
             lease_start: now - 7200,
             lease_end: now - 3600,
             hostname: None,
-            active: true,
         };
         db.create_lease(&expired).await.unwrap();
 
