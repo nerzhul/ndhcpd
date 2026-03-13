@@ -97,6 +97,10 @@ pub struct DhcpConfig {
     /// Maximum lease time in seconds
     #[serde(default = "default_max_lease_time")]
     pub max_lease_time: u32,
+
+    /// Interval in minutes between automatic expired-lease cleanup runs
+    #[serde(default = "default_lease_cleanup_interval")]
+    pub lease_cleanup_interval_minutes: u32,
 }
 
 fn default_lease_time() -> u32 {
@@ -105,6 +109,10 @@ fn default_lease_time() -> u32 {
 
 fn default_max_lease_time() -> u32 {
     604800 // 7 days
+}
+
+fn default_lease_cleanup_interval() -> u32 {
+    60 // 60 minutes
 }
 
 /// Router Advertisement (IPv6) configuration
@@ -175,6 +183,7 @@ impl Default for Config {
             dhcp: DhcpConfig {
                 default_lease_time: default_lease_time(),
                 max_lease_time: default_max_lease_time(),
+                lease_cleanup_interval_minutes: default_lease_cleanup_interval(),
             },
             ra: None,
             logging: LoggingConfig::default(),

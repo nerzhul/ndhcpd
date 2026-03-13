@@ -328,6 +328,15 @@ impl Database for SqliteDatabase {
         Ok(())
     }
 
+    async fn delete_expired_leases(&self) -> anyhow::Result<u64> {
+        let now = chrono::Utc::now().timestamp();
+        let result = sqlx::query("DELETE FROM leases WHERE lease_end < ?")
+            .bind(now)
+            .execute(&self.pool)
+            .await?;
+        Ok(result.rows_affected())
+    }
+
     // IPv6 Prefix (IA Prefix) operations
     async fn create_ia_prefix(&self, prefix: &IAPrefix) -> anyhow::Result<i64> {
         let dns_servers = prefix.dns_servers_to_string();

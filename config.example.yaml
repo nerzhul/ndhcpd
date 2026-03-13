@@ -32,6 +32,9 @@ dhcp:
   # Maximum lease time in seconds (7 days)
   max_lease_time: 604800
 
+  # Interval in minutes between automatic expired-lease cleanup runs (default: 60)
+  lease_cleanup_interval_minutes: 60
+
 # Router Advertisement (IPv6) configuration
 # This section is optional - if not present, default values will be used
 ra:

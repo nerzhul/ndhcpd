@@ -51,6 +51,8 @@ pub trait Database: Send + Sync {
     async fn get_active_lease(&self, mac: &str) -> anyhow::Result<Option<Lease>>;
     async fn list_active_leases(&self) -> anyhow::Result<Vec<Lease>>;
     async fn expire_lease(&self, id: i64) -> anyhow::Result<()>;
+    /// Delete all leases whose `lease_end` is in the past.
+    async fn delete_expired_leases(&self) -> anyhow::Result<u64>;
 
     // IPv6 Prefix (IA Prefix) operations
     async fn create_ia_prefix(&self, prefix: &IAPrefix) -> anyhow::Result<i64>;

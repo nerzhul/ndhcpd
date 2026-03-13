@@ -283,6 +283,22 @@ impl DhcpServer {
             }
         });
 
+        // Spawn a background task that periodically purges expired leases.
+        let cleanup_db = Arc::clone(&self.db);
+        let cleanup_interval = self.config.dhcp.lease_cleanup_interval_minutes;
+        tokio::spawn(async move {
+            let interval =
+                tokio::time::Duration::from_secs(cleanup_interval as u64 * 60);
+            loop {
+                tokio::time::sleep(interval).await;
+                match cleanup_db.delete_expired_leases().await {
+                    Ok(n) if n > 0 => info!("Lease cleanup: deleted {} expired lease(s)", n),
+                    Ok(_) => debug!("Lease cleanup: no expired leases"),
+                    Err(e) => warn!("Lease cleanup failed: {}", e),
+                }
+            }
+        });
+
         // Keep running
         loop {
             tokio::time::sleep(tokio::time::Duration::from_secs(60)).await;

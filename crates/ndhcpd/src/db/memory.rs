@@ -202,6 +202,14 @@ impl Database for InMemoryDatabase {
         Ok(())
     }
 
+    async fn delete_expired_leases(&self) -> anyhow::Result<u64> {
+        let now = chrono::Utc::now().timestamp();
+        let mut leases = self.leases.write().await;
+        let before = leases.len();
+        leases.retain(|l| l.lease_end >= now);
+        Ok((before - leases.len()) as u64)
+    }
+
     // IPv6 Prefix (IA Prefix) operations
     async fn create_ia_prefix(&self, prefix: &IAPrefix) -> anyhow::Result<i64> {
         let mut id = self.next_ia_prefix_id.write().await;
