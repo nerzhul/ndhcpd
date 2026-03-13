@@ -358,7 +358,7 @@ impl DhcpServer {
             };
 
             let iface_ips = get_interface_ips(&iface_name);
-            let response = Self::handle_packet(&packet, &iface_ips, &self.config, &*self.db).await;
+            let response = Self::handle_packet(&packet, &iface_name, &iface_ips, &self.config, &*self.db).await;
 
             if let Some(response_packet) = response {
                 let response_bytes = response_packet.to_bytes();
@@ -394,6 +394,7 @@ impl DhcpServer {
 
     async fn handle_packet(
         packet: &DhcpPacket,
+        iface_name: &str,
         iface_ips: &[Ipv4Addr],
         config: &Config,
         db: &dyn Database,
@@ -403,20 +404,20 @@ impl DhcpServer {
 
         match msg_type {
             MessageType::Discover => {
-                info!("DHCP DISCOVER from {}", mac);
+                info!("DHCP DISCOVER from {} on {}", mac, iface_name);
                 Self::handle_discover(packet, iface_ips, config, db).await
             }
             MessageType::Request => {
-                info!("DHCP REQUEST from {}", mac);
+                info!("DHCP REQUEST from {} on {}", mac, iface_name);
                 Self::handle_request(packet, iface_ips, config, db).await
             }
             MessageType::Release => {
-                info!("DHCP RELEASE from {}", mac);
+                info!("DHCP RELEASE from {} on {}", mac, iface_name);
                 Self::handle_release(packet, db).await;
                 None
             }
             MessageType::Inform => {
-                info!("DHCP INFORM from {}", mac);
+                info!("DHCP INFORM from {} on {}", mac, iface_name);
                 None // Not implemented yet
             }
             _ => {
