@@ -91,7 +91,10 @@ async fn delete(client: ApiClient, ip: String) -> Result<()> {
 async fn set_hostname(client: ApiClient, ip: String, hostname: Option<String>) -> Result<()> {
     use serde_json::json;
     client
-        .patch::<_, ()>(&format!("/api/static-ips/{}/hostname", ip), &json!({ "hostname": &hostname }))
+        .patch::<_, ()>(
+            &format!("/api/static-ips/{}/hostname", ip),
+            &json!({ "hostname": &hostname }),
+        )
         .await?;
     match hostname {
         Some(h) => println!("Updated hostname for {} to '{}'", ip, h),
@@ -99,3 +102,4 @@ async fn set_hostname(client: ApiClient, ip: String, hostname: Option<String>) -
     }
     Ok(())
 }
+
